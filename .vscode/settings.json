@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "*.ini": "properties",
+        ".env.*": "properties",
+    },
+}

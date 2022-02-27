@@ -1,0 +1,30 @@
+{
+    "version": "2.0.0",
+    "options": {
+        "env": {
+            "BUILDKIT_PROGRESS": "plain",
+        }
+    },
+    "tasks": [
+        {
+            "label": "Build Docker Image",
+            "type": "shell",
+            "group": "build",
+            "command": "docker",
+            "args": [
+                "compose",
+                "-f",
+                "docker/builder-compose.yml",
+                "--env-file",
+                "docker/config/prueba.ini",
+                "build"
+            ],
+            "presentation": {
+                "focus": true,
+                "showReuseMessage": false,
+                "clear": true
+            },
+            "problemMatcher": []
+        },
+    ]
+}

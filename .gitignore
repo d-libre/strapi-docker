@@ -1,2 +1,12 @@
-.env
-*.bak
+# Everything inside docker/config
+docker/config/*
+# except for the example.env
+!docker/config/example.ini
+
+# No .env configuration files
+.env*
+# except for those inside examples
+!examples/*/.env.*
+
+# For local dev only
+temp

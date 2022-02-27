@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  test:
+    container_name: build-check
+    image: libre/strapi:build
+    environment:
+      - DATABASE_CLIENT=sqlite
+    # command: sleep infinity
+    ports:
+      - "80:1337"

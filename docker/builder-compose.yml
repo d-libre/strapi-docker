@@ -1,0 +1,19 @@
+version: "3.9"
+
+services:
+
+  builder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - STRAPI_VER=${MAJOR}.${MINOR}.${UPDATE}
+        - NODE_BASE=${NODE_VER}-alpine
+        - DEFAULT_DB_CLIENT
+        - DEFAULT_DB_HOST
+        - DEFAULT_DB_PORT
+        - DEFAULT_DB_NAME
+        - DEFAULT_DB_USERNAME
+        - DEFAULT_DB_PASSWORD
+        - STRAPI_TEMPLATE_REPO
+    image: ${REGISTRY:-docker.io}/${DOCKER_U:-libre}/${DOCKER_I:-strapi}:${TAG:-build}
