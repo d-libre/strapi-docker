@@ -1,0 +1,25 @@
+#!/usr/bin/env node
+
+const dbDepends = require("./lib/utils/db-client-dependencies");
+const _ = require("lodash");
+const fs = require("fs");
+
+strapiVersion = process.env.VERSION;
+isV3 = strapiVersion.startsWith("3");
+scope = { strapiVersion };
+extraClients = ["sqlite", "postgres", "mysql"];
+// Adding support for mongo (for v3.x.x only)
+if (isV3) extraClients.unshift("mongo");
+dependencies = {};
+extraClients.forEach((client) => {
+  d = dbDepends({ scope, client });
+  console.log("%j", d);
+  dependencies = _.merge(dependencies, d);
+});
+console.log("Merged: %j", dependencies);
+try {
+  fs.writeFileSync("merged.json", JSON.stringify({ dependencies }, null, 2)+'\n');
+  //file written successfully
+} catch (err) {
+  console.error(err);
+}
