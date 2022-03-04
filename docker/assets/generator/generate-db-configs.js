@@ -9,7 +9,7 @@ const parseDatabaseArguments = require('./lib/utils/parse-db-arguments');
 const createDatabaseConfig = require('./lib/resources/templates/database.js');
 
 const strapiVersion = process.env.VERSION;
-const rootPath = process.env.APP_PATH;
+const rootPath = process.env.SRC_PATH;
 
 let inArgs = process.argv.slice(2);
 const configsDir = inArgs.length > 0 ? inArgs[0] : '/var/local/configs';

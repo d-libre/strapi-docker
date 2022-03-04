@@ -5,7 +5,7 @@ const _ = require("lodash");
 const fs = require("fs");
 const path = require('path');
 
-appDir = process.env.APP_PATH || '/srv/app/';
+appDir = process.env.SRC_PATH || '/src/';
 targetPath = path.resolve(appDir, 'package.json');
 
 var packageJson = require(targetPath);
