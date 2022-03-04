@@ -1,47 +1,88 @@
 ARG STRAPI_VER=3.6.8
-FROM node:14-alpine AS builder
+ARG LIB_NAME=boostrapi
+ARG USR_PATH=/usr/local/lib/docker/
+ARG APP_PATH=/src/app/
+ARG CFG_PATH=/var/local/strapi/configs/
 
-#RUN apk add --update --no-cache python3 \
-#    && ln -sf python3 /usr/bin/python
+FROM node:14-alpine AS clean
+LABEL maintainer="SalvadorCodes <hector@salvador.codes>"
+
+FROM clean AS builder
+
 ARG STRAPI_VER
+ARG LIB_NAME
+ARG USR_PATH
+ARG APP_PATH
+ARG CFG_PATH
+
 ENV VERSION=$STRAPI_VER
-ENV LIB_PATH=custom/strapi/generator
+ENV LIB_PATH=$USR_PATH$LIB_NAME/
 
-RUN npm install -g \
-    strapi@${VERSION} \
-    lodash
+RUN apk add --no-cache jq \
+    && npm install -g \
+        strapi@${VERSION} \
+        node-gyp
 
-WORKDIR /usr/local/lib/${LIB_PATH}
+WORKDIR ${APP_PATH}
 
-ADD scripts/* .
+RUN DOCKER=true strapi new . \
+    --quickstart \
+    --use-npm \
+    --debug \
+    --no-run
 
-# Symlinks for all custom bash scripts to the /usr/local/bin location
-RUN /usr/local/lib/${LIB_PATH}/symlink.sh \
-    && cp -r /usr/local/lib/node_modules/strapi/node_modules/strapi-generate-new/lib .
-    
+WORKDIR /assets
+ADD assets .
 
-# /usr/local/lib/node_modules/strapi/node_modules/strapi-generate-new/lib/resources
-#RUN strapi new app \
-#    --use-npm --debug \
-#    --quickstart \
-#    --no-run \
-#    && npm run-script build
+# Copy & Symlinks for all custom bash scripts to the /usr/local/bin location
+RUN mkdir -p ${LIB_PATH} \
+    && cp -r utils ${USR_PATH} \
+    && utils/symlink.sh ${USR_PATH} sh \
+    && cp -r generator/* ${LIB_PATH} \
+    && utils/symlink.sh ${LIB_PATH} js
 
-FROM alpine AS join
+WORKDIR ${LIB_PATH}
 
-COPY --from=builder /usr/lib /node/lib
-COPY --from=builder /usr/local/share /node/local/share
-COPY --from=builder /usr/local/lib /node/local/lib
-COPY --from=builder /usr/local/include /node/local/include
-COPY --from=builder /usr/local/bin /node/local/bin
+# TODO: Extract/Copy directly from package
+RUN cp -r /usr/local/lib/node_modules/strapi/node_modules/strapi-generate-new/lib . \
+    && npm install . \
+    && mkdir -p ${CFG_PATH} \
+    && generate-db-configs ${CFG_PATH} \
+    && inject-all-db-clients \
+    && rm -rf ${USR_PATH}${LIB_NAME%%/*}
 
-FROM alpine AS final
+WORKDIR ${APP_PATH}
+
+RUN yarn --production \
+    && yarn build
+
+
+FROM clean AS final
+
 ARG STRAPI_VER
-ENV VERSION=$STRAPI_VER
-ENV NODE_PATH=/usr/local/lib/node_modules
+ARG USR_PATH
+ARG CFG_PATH
 
-COPY --from=builder /opt /opt
-COPY --from=join /node /usr
-# COPY --from=builder /app /app
+ENV VERSION $STRAPI_VER
+ENV DB_CONFIGS_PATH $CFG_PATH
+ENV APP_PATH /srv/app/
 
-ENTRYPOINT [ "sh" ]
+COPY --from=builder /src/app ${APP_PATH}
+COPY --from=builder ${USR_PATH} ${USR_PATH}
+COPY --from=builder ${CFG_PATH} ${CFG_PATH}
+
+ADD docker-entrypoint.sh ${USR_PATH}entrypoint.sh
+
+RUN apk add --no-cache bash jq \
+    && ${USR_PATH}utils/symlink.sh ${USR_PATH} sh \
+    && rm /usr/local/bin/docker-entrypoint.sh
+
+WORKDIR ${APP_PATH}
+
+VOLUME [ "${APP_PATH}/api", "${APP_PATH}/extensions" ]
+
+EXPOSE 1337
+
+ENTRYPOINT [ "entrypoint" ]
+
+CMD [ "develop" ]
