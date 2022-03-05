@@ -1,0 +1,94 @@
+version: "3.9"
+
+services:
+  api:
+    container_name: strapi
+    image: libre/strapi:${TAG:-latest}
+    # command: sleep infinity
+    restart: unless-stopped
+    depends_on:
+      - ${DATABASE_CLIENT:-sqlite}
+    environment:
+      - DATABASE_CLIENT=${DATABASE_CLIENT:-sqlite}
+      - DATABASE_NAME=${DATABASE_NAME:-strapi}
+      - DATABASE_HOST=${DATABASE_HOST:-${DATABASE_CLIENT}}
+      - DATABASE_PORT=${DATABASE_PORT}
+      - DATABASE_USERNAME=${DATABASE_USERNAME:-strapi}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+    networks:
+      - db-test
+    ports:
+      - "80:1337"
+
+  postgres:
+    container_name: postgres
+    image: postgres:14-alpine
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DATABASE_NAME}
+      - POSTGRES_USER=${DATABASE_USERNAME}
+      - POSTGRES_PASSWORD_FILE=/run/secrets/db-password
+    secrets:
+      - db-password
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - db-test
+    expose:
+      - 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mysql:
+    container_name: mysql
+    image: mysql:5.7
+    command: --default-authentication-plugin=mysql_native_password
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DATABASE_NAME}
+      MYSQL_USER: ${DATABASE_USERNAME}
+      MYSQL_PASSWORD: ${DATABASE_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${DATABASE_PASSWORD}
+    volumes:
+      - mysql-db-data:/var/lib/mysql
+    networks:
+      - db-test
+    expose:
+      - 3306
+  
+  mongodb:
+    image: mongo
+    container_name: mongodb
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${DATABASE_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${DATABASE_PASSWORD}
+    volumes:
+      - mongo-db-data:/data/db
+    networks:
+      - db-test
+    expose:
+      - 27017
+
+  sqlite:
+    container_name: empty
+    image: busybox
+
+
+volumes:
+  postgres-data:
+    name: strapi-postgres-data
+  mysql-db-data:
+    name: strapi-mysql-db-data
+  mongo-db-data:
+    name: strapi-mongo-db-data
+secrets:
+  db-password:
+    file: password.key
+networks:
+  db-test:
+    name: strapi-db-test
+    driver: bridge
