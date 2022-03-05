@@ -104,6 +104,12 @@ VOLUME [ "${APP_PATH}/api", "${APP_PATH}/extensions" ]
 
 EXPOSE 1337
 
+HEALTHCHECK CMD curl -I 0.0.0.0:1337/_health || exit 1 \
+    --interval=36s \
+    --timeout=6s \
+    --start-period=6s \
+    --retries=3
+
 ENTRYPOINT [ "entrypoint" ]
 
 CMD [ "develop" ]
