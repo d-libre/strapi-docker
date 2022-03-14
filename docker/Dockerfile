@@ -88,9 +88,11 @@ ARG APP_PATH
 ENV APP_PATH $APP_PATH
 ENV DB_CONFIGS_PATH $CFG_PATH
 
-COPY --from=builder --chown=strapi:strapi ${SRC_PATH} ${APP_PATH}
-COPY --from=builder ${USR_PATH} ${USR_PATH}
-COPY --from=builder ${CFG_PATH} ${CFG_PATH}
+COPY --from=libre/gget  /usr/local/ /usr/local/
+COPY --from=builder     ${USR_PATH} ${USR_PATH}
+COPY --from=builder     ${CFG_PATH} ${CFG_PATH}
+COPY --from=builder     --chown=strapi:strapi \
+                        ${SRC_PATH} ${APP_PATH}
 ADD docker-entrypoint.sh ${USR_PATH}entrypoint.sh
 
 RUN ${USR_PATH}utils/symlink.sh ${USR_PATH} sh \
