@@ -1,0 +1,8 @@
+version: "3.9"
+
+services:
+  test:
+    build:
+      context: ../../
+      dockerfile: test/import/Dockerfile
+    image: libre/strapi:import-test

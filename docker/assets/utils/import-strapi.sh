@@ -46,6 +46,7 @@ trap 'base::onExit $? $LINENO' EXIT
 trap 'base::onError $? $LINENO' ERR
 
 declare -r __BASE_ENV_VARS="^(IMPORT_|_+import_+)"
+declare -a __IMPORT_ALLOWED_PATHS=(api components config/functions data database plugins public scripts src)
 
 import::parseArguments() {
     # Try
@@ -62,7 +63,6 @@ import::parseArguments() {
         exit 1
     }
     local _trailingArgs=$(base::trailingArguments "${_importOptions}")
-    echo "Trailing Arguments: ${_trailingArgs}"
     local _firstTrailing="${_trailingArgs%% *}"
     if [[ ! -z "${_firstTrailing}" ]]; then
         # Assign (first) trailing value as the repository URL/ShortHand
@@ -130,13 +130,20 @@ import::mergeAllFiles() {
     fi
     _templateDir=${IMPORT_TEMPLATE_SOURCE}
     _innerPath=${IMPORT_TEMPLATE_SUBDIR:-template}
-    # ls ${tmpDir}
     if [[ ! -d ${_templateDir} ]]; then
         echo "Unable to reach the source path ${_templateDir}!"
         exit 7
     fi
-    # TODO: Also validate that inner files & folders structure is ok
-    cp -r ${_templateDir}/${_innerPath}/* .
+    for dir in ${__IMPORT_ALLOWED_PATHS[@]}; do
+        _sourceDir=${_templateDir}/${_innerPath}/${dir}
+        if [[ -d ${_sourceDir} ]]; then
+            printf "Importing ${_sourceDir}.. "
+            cp -r ${_sourceDir} ./
+            printf "☑\n"
+        else
+            printf "Not found ${_sourceDir} ☐\n"
+        fi
+    done
 }
 
 import::mergePackages() {
@@ -162,8 +169,9 @@ import::mergePackages() {
 
 import::install() {
     if [[ -n ${IMPORT_TEMPLATE_INSTALL} ]]; then
-        echo "Proceeding to install/build with Yarn.."
-        yarn --production && yarn build
+        echo "Proceeding to install/build with Yarn.." \
+        && yarn --production \
+        && yarn build
     fi
 }
 
