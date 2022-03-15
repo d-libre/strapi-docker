@@ -12,13 +12,25 @@ ARG UID=1000
 # -----| base |-----
 # Shared stage/base image
 FROM node:${NODE_BASE} AS base
-LABEL maintainer="SalvadorCodes <hector@salvador.codes>"
 
 ARG UID
 ARG SRC_PATH
 ARG USR_PATH
 ARG CFG_PATH
+ARG NODE_BASE
 ARG STRAPI_VER
+
+LABEL maintainer="github.com/SalvadorCodes"
+
+LABEL org.opencontainers.image.title="Strapi" \
+      org.opencontainers.image.version="v${STRAPI_VER}-n${NODE_BASE}" \
+      org.opencontainers.image.description="Live Strapi Docker"
+LABEL org.opencontainers.image.authors="github.com/SalvadorCodes"
+
+LABEL org.opencontainers.image.url=https://hub.docker.com/repository/docker/libre/strapi \
+      org.opencontainers.image.source=https://github.com/d-libre/strapi-docker/blob/main/docker/Dockerfile \
+      org.opencontainers.image.documentation=https://github.com/d-libre/strapi-docker#readme
+LABEL org.opencontainers.image.base.name=docker.io/library/node:${NODE_BASE}
 
 # Make Strapi Version available to both install scripts & containers
 ENV VERSION $STRAPI_VER
@@ -40,6 +52,7 @@ ARG LIB_NAME
 
 ENV LIB_PATH=$USR_PATH$LIB_NAME/
 
+# Globally Install Strapi + node-gyp package
 RUN npm install -g \
         strapi@${VERSION} \
         node-gyp
@@ -73,9 +86,9 @@ RUN cp -r /usr/local/lib/node_modules/strapi/node_modules/strapi-generate-new/li
     && inject-all-db-clients \
     && rm -rf ${USR_PATH}${LIB_NAME%%/*}
 
+# Final Build
 WORKDIR ${SRC_PATH}
 
-# Final Build
 RUN yarn --production \
     && yarn build
 
