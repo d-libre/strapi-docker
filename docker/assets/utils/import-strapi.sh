@@ -54,7 +54,7 @@ import::parseArguments() {
     local _importOptions=$(getopt \
         -n "import" \
         -s bash \
-        -l "branch:,tag:,output:,prefix:,user:,secret:,from:,no-merge,install" \
+        -l "branch:,tag:,output:,prefix:,user:,secret:,from:,no-merge,install,package-only" \
         -o "b:t:o:p:u:s:f:in" \
         -- "${@}"
     ) || { # Catch
@@ -87,6 +87,10 @@ import::parseArguments() {
                 base::setEnv IMPORT_TEMPLATE_NO_MERGE true 'Do not merge files '
                 shift 1
                 ;;
+            --package-only)
+                base::setEnv IMPORT_TEMPLATE_PACKAGE_ONLY true 'Merge Package Only '
+                shift 1
+                ;;
             -i|--install)
                 base::setEnv IMPORT_TEMPLATE_INSTALL true 'AutoInstall + Build'
                 shift 1
@@ -104,8 +108,22 @@ import::parseArguments() {
     export GGET_EXTRA_ARGUMENTS=${_ggetArgs}
 }
 
+import::setupFromArguments() {
+    [[ -z ${IMPORT_REPO_SH_URL} ]] && _skip_downloadingFiles=true || true
+    [[ -n ${IMPORT_TEMPLATE_NO_MERGE}${IMPORT_TEMPLATE_PACKAGE_ONLY} ]] && _skip_mergingFiles=true || true
+    [[ -n ${IMPORT_TEMPLATE_NO_MERGE} ]] && [[ -z ${IMPORT_TEMPLATE_PACKAGE_ONLY} ]] && _skip_mergingPackages=true || true
+    [[ -n ${IMPORT_REPO_SH_URL}${IMPORT_TEMPLATE_SOURCE} ]] || {
+        printf "You need to set either
+        the fully qualified URL or Shorthand of the repository with the app/template
+        or The directory where you want to import the files from [with --from]
+        "
+        __showHelp
+        exit 19
+    }
+}
+
 import::getFilesFromRepository() {
-    if [[ -z ${IMPORT_REPO_SH_URL} ]]; then
+    if [[ -n $_skip_downloadingFiles ]]; then
         # Download from repository has not been required
         return 0
     fi
@@ -114,19 +132,17 @@ import::getFilesFromRepository() {
     echo "Import with gget from ${IMPORT_REPO_SH_URL} to ${_targetDir}/"
     echo "Extra Arguments: ${GGET_EXTRA_ARGUMENTS} --prefix ${_urlPrefix}"
     gget ${GGET_EXTRA_ARGUMENTS} -p ${_urlPrefix} -o ${_targetDir} ${IMPORT_REPO_SH_URL}
-    if [[ ! -z "${IMPORT_TEMPLATE_NO_MERGE}" ]]; then
-        # Only download was required - (not-to-merge)
+    if [[ -n $_skip_mergingFiles ]]; then
+        # Only download was required - (not-to-merge-files)
         echo "Template files have been properly downloaded and available at ${_targetDir}"
-        exit 0
     fi
     export IMPORT_TEMPLATE_SOURCE=${_targetDir}
 }
 
 import::mergeAllFiles() {
-    if [[ -z ${IMPORT_TEMPLATE_SOURCE} ]]; then
-        echo "Nothing to Import."
-        __showHelp
-        exit 0
+    if [[ -n $_skip_mergingFiles ]]; then
+        echo "Skip merging files."
+        return 0
     fi
     _templateDir=${IMPORT_TEMPLATE_SOURCE}
     _innerPath=${IMPORT_TEMPLATE_SUBDIR:-template}
@@ -147,6 +163,10 @@ import::mergeAllFiles() {
 }
 
 import::mergePackages() {
+    if [[ -n ${_skip_mergingPackages} ]]; then
+        echo "Skip merging package.json."
+        return 0
+    fi
     _templateDir=${IMPORT_TEMPLATE_SOURCE}
     jsConfigPath=${_templateDir}/template.js
     jsonConfigPath=${_templateDir}/template.json
@@ -178,14 +198,16 @@ import::install() {
 # MAIN
 import::parseArguments "${@}"
 
+import::setupFromArguments
+
 # Import files from repository with gget
 import::getFilesFromRepository
 
-# Merges template files into main app (in current directory)
-import::mergeAllFiles
-
 # Merges template's configuration (package.json) into main app's config
 import::mergePackages
+
+# Merges template files into main app (in current directory)
+import::mergeAllFiles
 
 # Yarn Install+Build
 import::install
