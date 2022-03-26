@@ -6,7 +6,6 @@
     "scripts": {
     },
     "devDependencies": {
-
     },
     "dependencies": {
         "chalk": "^4.1.2",
@@ -14,10 +13,14 @@
         "lodash": "^4.17.21"
     },
     "author": {
-      "name": "SalvadorCodes <hector@salvador.codes>"
+      "name": "github.com/SalvadorCodes"
     },
     "engines": {
       "node": ">=10.16.0 <=14.x.x",
       "npm": "^6.0.0"
+    },
+    "bin": {
+      "generate-db-configs": "lib/generate-db-configs.js",
+      "inject-db-clients": "lib/inject-all-db-clients.js"
     }
   }

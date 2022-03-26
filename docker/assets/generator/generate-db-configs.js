@@ -4,9 +4,9 @@ const _ = require("lodash");
 const fs = require("fs");
 const path = require('path');
 
-const defaultConfigs = require('./lib/utils/db-configs');
-const parseDatabaseArguments = require('./lib/utils/parse-db-arguments');
-const createDatabaseConfig = require('./lib/resources/templates/database.js');
+const defaultConfigs = require('./utils/db-configs');
+const parseDatabaseArguments = require('./utils/parse-db-arguments');
+const createDatabaseConfig = require('./resources/templates/database.js');
 
 const strapiVersion = process.env.VERSION;
 const rootPath = process.env.SRC_PATH;
@@ -53,8 +53,6 @@ function generateDbConfigFor(client) {
     client,
     connection,
   });
-  
-  console.log("Connection for %s:\n%s\n", client, JSON.stringify(connection, null, 2));
   
   try {
     filePath = path.resolve(configsDir, client + ".js");
