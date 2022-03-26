@@ -16,15 +16,51 @@
                 "-f",
                 "docker/builder-compose.yml",
                 "--env-file",
-                "docker/config/prueba.ini",
-                "build"
+                "docker/config/example.ini",
+                "build",
+                "--no-cache",
+                "${input:image}"
             ],
             "presentation": {
                 "focus": true,
-                "showReuseMessage": false,
                 "clear": true
             },
+            "promptOnClose": true,
             "problemMatcher": []
         },
-    ]
+        {
+            "label": "Docker Push Image",
+            "type": "shell",
+            "group": "none",
+            "command": "docker",
+            "args": [
+                "compose",
+                "-f",
+                "docker/builder-compose.yml",
+                "--env-file",
+                "docker/config/example.ini",
+                "push",
+                "${input:image}"
+            ],
+            "presentation": {
+                "focus": true,
+                "clear": true
+            },
+            "promptOnClose": true,
+            "problemMatcher": []
+        },
+    ],
+    "inputs": [
+        {
+          "type": "pickString",
+          "id": "image",
+          "description": "Image to Build",
+          "options": [
+            "live",
+            "cli",
+            "base",
+          ],
+          "default": "cli"
+        },
+    ]    
 }
