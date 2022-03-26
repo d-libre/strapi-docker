@@ -26,7 +26,7 @@ __showHelp() {
     cat ${__IMPORT_SCRIPT_LOCATION}/docs/import.md 2>/dev/null || {
         printf "
 Import Strapi App/Template directly from either a public/private repository
-of from any directory in your file system.
+or from any directory in your file system.
 
 Usage:
   From GitHub:
@@ -54,8 +54,8 @@ import::parseArguments() {
     local _importOptions=$(getopt \
         -n "import" \
         -s bash \
-        -l "branch:,tag:,output:,prefix:,user:,secret:,from:,no-merge,install,package-only" \
-        -o "b:t:o:p:u:s:f:in" \
+        -l "branch:,tag:,output:,prefix:,user:,secret:,from:,no-merge,install,build,lockfile,package-only" \
+        -o "b:t:o:p:u:s:f:nIBl" \
         -- "${@}"
     ) || { # Catch
         echo "Incorrect options provided"
@@ -91,8 +91,16 @@ import::parseArguments() {
                 base::setEnv IMPORT_TEMPLATE_PACKAGE_ONLY true 'Merge Package Only '
                 shift 1
                 ;;
-            -i|--install)
-                base::setEnv IMPORT_TEMPLATE_INSTALL true 'AutoInstall + Build'
+            -I|--install)
+                base::setEnv IMPORT_TEMPLATE_INSTALL true 'Install on complete'
+                shift 1
+                ;;
+            -B|--build)
+                base::setEnv IMPORT_TEMPLATE_BUILD true 'Build after install'
+                shift 1
+                ;;
+            -l|--lockfile)
+                base::setEnv IMPORT_TEMPLATE_LOCK true 'FreezeLock Packages'
                 shift 1
                 ;;
             --)
@@ -153,8 +161,9 @@ import::mergeAllFiles() {
     for dir in ${__IMPORT_ALLOWED_PATHS[@]}; do
         _sourceDir=${_templateDir}/${_innerPath}/${dir}
         if [[ -d ${_sourceDir} ]]; then
-            printf "Importing ${_sourceDir}.. "
-            cp -r ${_sourceDir} ./
+            _destDir=$(dirname ${dir})
+            printf "Importing ${_sourceDir}.. to ${_destDir}"
+            cp -r ${_sourceDir} ${_destDir}
             printf "☑\n"
         else
             printf "Not found ${_sourceDir} ☐\n"
@@ -168,14 +177,27 @@ import::mergePackages() {
         return 0
     fi
     _templateDir=${IMPORT_TEMPLATE_SOURCE}
+    _innerPath=${IMPORT_TEMPLATE_SUBDIR:-template}
     jsConfigPath=${_templateDir}/template.js
     jsonConfigPath=${_templateDir}/template.json
     currentConfigPath=$(pwd)/package.json
+    innerPackagePath=${_templateDir}/${_innerPath}/package.json
     tmpPackagePath=${_templateDir}/package.json
+    innerPath=${IMPORT_TEMPLATE_SUBDIR:-template}
 
-    if [[ -f "$jsConfigPath" ]]; then
+    if [[ -f "${innerPackagePath}" ]]; then
+        mv "${innerPackagePath}" "${tmpPackagePath}"
+    fi
+    if [[ -f "${jsConfigPath}" ]]; then
         echo "Function Config file found! Generating the static JSON..."
         node -e 'const t=require("'${jsConfigPath%.*}'");console.log("%j",t({"strapiVersion":"'${VERSION}'"}))' > ${jsonConfigPath}
+    elif [[ -f "${tmpPackagePath}" ]]; then
+        jq '{ "package": . }' <${tmpPackagePath} >${jsonConfigPath}
+    elif [[ ! -f "${jsonConfigPath}" ]]; then
+        printf "You need to have either a template.js or template.json or package.json 
+in your template's root directory in order to properly import the template/app package
+Skipping package merge..."
+        return 0
     fi
 
     # Recursively merge the inner .package json node of the template.json
@@ -183,16 +205,28 @@ import::mergePackages() {
     jq -s '.[0] * .[1].package' ${currentConfigPath} ${jsonConfigPath} > ${tmpPackagePath}
     # Replacing the package.json
     # TODO: Inject the template's URL
-
     mv ${tmpPackagePath} ${currentConfigPath}
 }
 
 import::install() {
-    if [[ -n ${IMPORT_TEMPLATE_INSTALL} ]]; then
-        echo "Proceeding to install/build with Yarn.." \
-        && yarn --production \
-        && yarn build
+    if [[ -z ${IMPORT_TEMPLATE_INSTALL} ]]; then
+        return 0
     fi
+    if [[ -n ${IMPORT_TEMPLATE_LOCK} ]]; then
+        _lockFile=--frozen-lockfile
+    else
+        base::removeAny *lock*
+    fi
+    echo "Proceed to install with Yarn ${_lockFile}"
+    yarn --production ${_lockFile}
+}
+
+import::build() {
+    if [[ -z ${IMPORT_TEMPLATE_BUILD} ]]; then
+        return 0
+    fi
+    echo "Proceed to build with Yarn.."
+    yarn build
 }
 
 # MAIN
@@ -209,7 +243,10 @@ import::mergePackages
 # Merges template files into main app (in current directory)
 import::mergeAllFiles
 
-# Yarn Install+Build
+# Yarn Install (if required)
 import::install
+
+# Yarn Build (if required)
+import::build
 
 echo "Done!"
