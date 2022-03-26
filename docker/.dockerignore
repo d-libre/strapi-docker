@@ -1,1 +1,3 @@
-builder.yml
+*
+!assets
+!**/*.sh

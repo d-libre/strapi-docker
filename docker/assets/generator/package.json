@@ -21,6 +21,6 @@
     },
     "bin": {
       "generate-db-configs": "lib/generate-db-configs.js",
-      "inject-db-clients": "lib/inject-all-db-clients.js"
+      "set-db-dependencies": "lib/set-db-dependencies.js"
     }
   }

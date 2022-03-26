@@ -3,6 +3,8 @@ docker/config/*
 # except for the example.env
 !docker/config/example.ini
 
+# No .key files (mostly used to store GitHub tokens)
+*.key
 # No .env configuration files
 .env*
 # except for those inside examples

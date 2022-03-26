@@ -2,18 +2,40 @@ version: "3.9"
 
 services:
 
-  builder:
+  live:
+    build:
+      context: .
+      dockerfile: live/Dockerfile
+      target: live  # default anyways
+      args:
+        - STRAPI_BASE_TAG=v${MAJOR}.${MINOR}.${UPDATE}-n${NODE_VER}
+    image: ${REGISTRY:-docker.io}/${DOCKER_U:-libre}/strapi-live:${TAG:-v3}
+
+  cli:
     build:
       context: .
       dockerfile: Dockerfile
+      target: final
       args:
+        - BASE_NODE_VERSION=${NODE_VER}
         - STRAPI_VER=${MAJOR}.${MINOR}.${UPDATE}
+    image: ${REGISTRY:-docker.io}/${DOCKER_U:-libre}/strapi:v${MAJOR}.${MINOR}.${UPDATE}-n${NODE_VER}
+
+  base:
+    build:
+      context: .
+      dockerfile: base/Dockerfile
+      target: base
+      args:
         - NODE_BASE=${NODE_VER}-alpine
-        - DEFAULT_DB_CLIENT
-        - DEFAULT_DB_HOST
-        - DEFAULT_DB_PORT
-        - DEFAULT_DB_NAME
-        - DEFAULT_DB_USERNAME
-        - DEFAULT_DB_PASSWORD
-        - STRAPI_TEMPLATE_REPO
-    image: ${REGISTRY:-docker.io}/${DOCKER_U:-libre}/${DOCKER_I:-strapi}:${TAG:-build}
+    image: ${REGISTRY:-docker.io}/${DOCKER_U:-libre}/strapi-base:node-${NODE_VER}
+
+  cache:
+    build:
+      context: .
+      dockerfile: cache/Dockerfile
+      target: cache
+      args:
+        - NODE_BASE=${NODE_VER}-alpine
+        - STRAPI_VER=${MAJOR}.${MINOR}.${UPDATE}
+    image: ${REGISTRY:-docker.io}/${DOCKER_U:-libre}/strapi-cache:v${MAJOR}.${MINOR}.${UPDATE}-n${NODE_VER}

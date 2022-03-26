@@ -1,130 +1,90 @@
-ARG NODE_BASE=14-alpine
+ARG BASE_NODE_VERSION=14
 ARG STRAPI_VER=3.6.8
 # Final target path
-ARG APP_PATH=/srv/app/
+ARG APP_PATH=/srv/app
 ARG SRC_PATH=/src
+
 ARG LIB_NAME=boostrapi
 ARG USR_PATH=/usr/local/lib/docker/
 ARG CFG_PATH=/var/local/strapi/configs/
-# The custom User/Group Id
-ARG UID=1000
 
 # -----| base |-----
 # Shared stage/base image
-FROM node:${NODE_BASE} AS base
+FROM libre/strapi-base:node-${BASE_NODE_VERSION} AS base
 
-ARG UID
 ARG SRC_PATH
 ARG USR_PATH
 ARG CFG_PATH
-ARG NODE_BASE
+ARG BASE_NODE_VERSION
 ARG STRAPI_VER
 
-LABEL maintainer="github.com/SalvadorCodes"
+LABEL org.opencontainers.image.title="Strapi CI-CD" \
+      org.opencontainers.image.version="v${STRAPI_VER}-n${BASE_NODE_VERSION}"
 
-LABEL org.opencontainers.image.title="Strapi" \
-      org.opencontainers.image.version="v${STRAPI_VER}-n${NODE_BASE}" \
-      org.opencontainers.image.description="Live Strapi Docker"
-LABEL org.opencontainers.image.authors="github.com/SalvadorCodes"
+LABEL org.opencontainers.image.source=https://github.com/d-libre/strapi-docker/blob/main/docker/Dockerfile
 
-LABEL org.opencontainers.image.url=https://hub.docker.com/repository/docker/libre/strapi \
-      org.opencontainers.image.source=https://github.com/d-libre/strapi-docker/blob/main/docker/Dockerfile \
-      org.opencontainers.image.documentation=https://github.com/d-libre/strapi-docker#readme
-LABEL org.opencontainers.image.base.name=docker.io/library/node:${NODE_BASE}
+LABEL org.opencontainers.image.base.name=docker.io/libre/strapi-base:node-${BASE_NODE_VERSION}
 
 # Make Strapi Version available to both install scripts & containers
 ENV VERSION $STRAPI_VER
 
-# Install Bash, Curl & jq for both builder and final
-# Also remove the "node" user:group pair
-# and create the new ones to run strapi
-RUN apk add --no-cache bash curl jq \
-    && deluser --remove-home node \
-    && addgroup -g ${UID} -S strapi \
-    && adduser -h /home/strapi -u ${UID} -G strapi -D strapi
-
+# ---| Cache |---
+# Pre-build cache
+FROM libre/strapi-cache:v${STRAPI_VER}-n${BASE_NODE_VERSION} AS cache
 
 # -----| builder |-----
 # Building stage
 FROM base AS builder
 
 ARG LIB_NAME
+ARG NODE_LIB=/usr/local/lib/node_modules
 
-ENV LIB_PATH=$USR_PATH$LIB_NAME/
+ENV LIB_PATH /usr/local/lib/$LIB_NAME/
 
-# Globally Install Strapi + node-gyp package
-RUN npm install -g \
-        strapi@${VERSION} \
-        node-gyp
+COPY --from=base /usr/local/lib/ /tmp/local/lib/
+COPY --from=base /usr/local/bin/ /tmp/local/bin/
 
-WORKDIR ${SRC_PATH}
+# Get Strapi & node-gyp packages from pre-built cache
+COPY --from=cache ${NODE_LIB}/      ${NODE_LIB}/
+COPY --from=cache /usr/local/bin/   /usr/local/bin/
 
-# Generate & Build a new Strapi app (from scratch)
-RUN DOCKER=true strapi new . \
-    --quickstart \
-    --use-npm \
-    --debug \
-    --no-run
-
-WORKDIR /assets
-ADD assets .
-
-# Copy & Symlinks for all custom bash scripts to the /usr/local/bin location
-RUN mkdir -p ${LIB_PATH} \
-    && cp -r utils ${USR_PATH} \
-    && utils/symlink.sh ${USR_PATH} sh \
-    && cp -r generator/* ${LIB_PATH} \
-    && utils/symlink.sh ${LIB_PATH} js
-
+# Build/Install Boostrapi tools
 WORKDIR ${LIB_PATH}
+ADD assets/generator/ ./
 
 # TODO: Extract/Copy directly from package
-RUN cp -r /usr/local/lib/node_modules/strapi/node_modules/strapi-generate-new/lib . \
-    && npm install . \
-    && mkdir -p ${CFG_PATH} \
+RUN cp -r ${NODE_LIB}/strapi/node_modules/strapi-generate-new/lib/*/ .
+
+RUN npm install . \
+    && binlink ${LIB_PATH} 1 js
+
+# Using Custom tools to generate configurations for all db clients
+RUN mkdir -p ${CFG_PATH} \
     && generate-db-configs ${CFG_PATH} \
-    && inject-all-db-clients \
-    && rm -rf ${USR_PATH}${LIB_NAME%%/*}
+    && set-db-dependencies
 
-# Final Build
-WORKDIR ${SRC_PATH}
-
-RUN yarn --production \
-    && yarn build
+RUN diff-copy /tmp/local /usr/local /src/local
 
 
-# -----| final |-----
-# Deployment Stage (only target app+modules)
+# # -----| final |-----
+# Final Stage (only installed modules/libs)
 FROM base AS final
+
 ARG APP_PATH
 
 ENV APP_PATH $APP_PATH
 ENV DB_CONFIGS_PATH $CFG_PATH
 
-COPY --from=libre/gget  /usr/local/ /usr/local/
-COPY --from=builder     ${USR_PATH} ${USR_PATH}
-COPY --from=builder     ${CFG_PATH} ${CFG_PATH}
+COPY --from=builder     /src/local/ /usr/local/
 COPY --from=builder     --chown=strapi:strapi \
-                        ${SRC_PATH} ${APP_PATH}
-ADD docker-entrypoint.sh ${USR_PATH}entrypoint.sh
+                        ${CFG_PATH} ${CFG_PATH}
 
-RUN ${USR_PATH}utils/symlink.sh ${USR_PATH} sh \
-    && rm /usr/local/bin/docker-entrypoint.sh
+ADD docker-entrypoint.sh /usr/bin/entrypoint
 
 USER strapi:strapi
 
 WORKDIR ${APP_PATH}
 
-VOLUME [ "${APP_PATH}/api", "${APP_PATH}/extensions" ]
-
-EXPOSE 1337
-
-HEALTHCHECK CMD curl -I 0.0.0.0:1337/_health || exit 1 \
-    --interval=36s \
-    --timeout=6s \
-    --start-period=6s \
-    --retries=3
-
 ENTRYPOINT [ "entrypoint" ]
 
-CMD [ "develop" ]
+CMD [ "bash" ]
