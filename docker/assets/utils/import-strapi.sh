@@ -54,8 +54,8 @@ import::parseArguments() {
     local _importOptions=$(getopt \
         -n "import" \
         -s bash \
-        -l "branch:,tag:,output:,prefix:,user:,secret:,from:,no-merge,install,build,lockfile,package-only" \
-        -o "b:t:o:p:u:s:f:nIBl" \
+        -l "branch:,tag:,output:,prefix:,user:,secret:,from:,subdir:,extra-dirs:,no-merge,install,build,lockfile,package-only" \
+        -o "b:t:o:p:u:s:f:d:x:nIBl" \
         -- "${@}"
     ) || { # Catch
         echo "Incorrect options provided"
@@ -72,35 +72,43 @@ import::parseArguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             -p|--prefix)
-                base::setEnv IMPORT_REPO_PREFIX "${2}" 'Prefix Repo name '
+                base::setEnv IMPORT_REPO_PREFIX "${2}" "Prefix Repo name "
                 shift 2
                 ;;
             -o|--output)
-                base::setEnv IMPORT_OUTPUT_PATH "${2}" 'Output Directory '
+                base::setEnv IMPORT_OUTPUT_PATH "${2}" "Output Directory "
                 shift 2
                 ;;
             -f|--from)
-                base::setEnv IMPORT_TEMPLATE_SOURCE "${2}" 'From Files in Dir'
+                base::setEnv IMPORT_TEMPLATE_SOURCE "${2}" "From Files in Dir"
+                shift 2
+                ;;
+            -d|--subdir)
+                base::setEnv IMPORT_TEMPLATE_SUBDIR "${2}" "Template's Folder"
+                shift 2
+                ;;
+            -x|--extra-dirs)
+                base::setEnv IMPORT_TEMPLATE_EXTRA_DIRS "${2}" "ExtraDirs Allowed"
                 shift 2
                 ;;
             -n|--no-merge)
-                base::setEnv IMPORT_TEMPLATE_NO_MERGE true 'Do not merge files '
+                base::setEnv IMPORT_TEMPLATE_NO_MERGE true "Do not merge dirs"
                 shift 1
                 ;;
             --package-only)
-                base::setEnv IMPORT_TEMPLATE_PACKAGE_ONLY true 'Merge Package Only '
+                base::setEnv IMPORT_TEMPLATE_PACKAGE_ONLY true "Package.json only"
                 shift 1
                 ;;
             -I|--install)
-                base::setEnv IMPORT_TEMPLATE_INSTALL true 'Install on complete'
-                shift 1
-                ;;
-            -B|--build)
-                base::setEnv IMPORT_TEMPLATE_BUILD true 'Build after install'
+                base::setEnv IMPORT_TEMPLATE_INSTALL true "Install once done"
                 shift 1
                 ;;
             -l|--lockfile)
-                base::setEnv IMPORT_TEMPLATE_LOCK true 'FreezeLock Packages'
+                base::setEnv IMPORT_TEMPLATE_LOCK true "Freezing Packages"
+                shift 1
+                ;;
+            -B|--build)
+                base::setEnv IMPORT_TEMPLATE_BUILD true "Build final files"
                 shift 1
                 ;;
             --)
@@ -117,6 +125,7 @@ import::parseArguments() {
 }
 
 import::setupFromArguments() {
+    _import_directories="${__IMPORT_ALLOWED_PATHS[@]} ${IMPORT_TEMPLATE_EXTRA_DIRS}"
     [[ -z ${IMPORT_REPO_SH_URL} ]] && _skip_downloadingFiles=true || true
     [[ -n ${IMPORT_TEMPLATE_NO_MERGE}${IMPORT_TEMPLATE_PACKAGE_ONLY} ]] && _skip_mergingFiles=true || true
     [[ -n ${IMPORT_TEMPLATE_NO_MERGE} ]] && [[ -z ${IMPORT_TEMPLATE_PACKAGE_ONLY} ]] && _skip_mergingPackages=true || true
@@ -158,11 +167,12 @@ import::mergeAllFiles() {
         echo "Unable to reach the source path ${_templateDir}!"
         exit 7
     fi
-    for dir in ${__IMPORT_ALLOWED_PATHS[@]}; do
+    for dir in ${_import_directories[@]}; do
         _sourceDir=${_templateDir}/${_innerPath}/${dir}
         if [[ -d ${_sourceDir} ]]; then
             _destDir=$(dirname ${dir})
-            printf "Importing ${_sourceDir}.. to ${_destDir}"
+            mkdir -p ${_destDir}
+            printf "Importing ${_sourceDir} to ${_destDir} "
             cp -r ${_sourceDir} ${_destDir}
             printf "☑\n"
         else
